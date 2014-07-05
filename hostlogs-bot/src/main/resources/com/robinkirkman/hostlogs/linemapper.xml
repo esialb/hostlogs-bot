@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+  PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+  "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.robinkirkman.hostlogs.LineMapper">
+	<insert id="insert" parameterType="Line">
+INSERT INTO
+	`lines` (`to`, `nick`, `user`, `host`, `line`, `ts`)
+VALUES
+	(#{to}, #{nick}, #{user}, #{host}, #{line}, #{ts})
+;
+	</insert>
+	<select id="last100" parameterType="FromHost" resultType="Line">
+SELECT
+	`to` as `to`, `nick` as `nick`, `user` as `user`, `host` as `host`, `line` as `line`, `ts` as `ts`
+FROM
+	`lines`
+WHERE
+	`host` = #{host}
+	AND `to` = #{to}
+ORDER BY
+	`ts` DESC
+LIMIT 100
+;
+	</select>
+	
+	<sql id="create">
+CREATE TABLE `lines` (
+  `nick` text,
+  `user` text,
+  `host` text,
+  `line` text,
+  `ts` timestamp(6) NULL DEFAULT NULL,
+  `to` text
+);
+	</sql>
+	
+</mapper>
