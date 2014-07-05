@@ -15,6 +15,7 @@ import org.pircbotx.PircBotX;
 import org.pircbotx.User;
 import org.pircbotx.hooks.ListenerAdapter;
 import org.pircbotx.hooks.events.JoinEvent;
+import org.pircbotx.hooks.events.NickChangeEvent;
 import org.pircbotx.hooks.events.PartEvent;
 import org.pircbotx.hooks.events.QuitEvent;
 import org.pircbotx.hooks.events.UserListEvent;
@@ -49,7 +50,7 @@ public class ViewerListener extends ListenerAdapter<PircBotX> {
 		if(users.contains(u.getNick()))
 			return;
 		users.add(u.getNick());
-		Collections.sort(users);
+		Collections.sort(users, String.CASE_INSENSITIVE_ORDER);
 		DefaultMutableTreeNode cn = (DefaultMutableTreeNode) root.getChildAt(channels.indexOf(c));
 		DefaultMutableTreeNode un = new DefaultMutableTreeNode(u);
 		model.insertNodeInto(un, cn, users.indexOf(u.getNick()));
@@ -74,6 +75,31 @@ public class ViewerListener extends ListenerAdapter<PircBotX> {
 		model.removeNodeFromParent(un);
 		users.remove(ui);
 
+	}
+	
+	private void nickchanged(User botuser, Channel c, User u, String oldnick, String newnick) {
+		int ci = channels.indexOf(c);
+		DefaultMutableTreeNode cn = (DefaultMutableTreeNode) root.getChildAt(ci);
+
+		if(botuser.equals(u)) { // remove the entire channel, we parted
+			model.removeNodeFromParent(cn);
+			channels.remove(c);
+			members.remove(c);
+			return;
+		}
+		
+		List<String> users = members.get(c);
+		int ui = users.indexOf(oldnick);
+		if(ui == -1)
+			return;
+		DefaultMutableTreeNode un = (DefaultMutableTreeNode) cn.getChildAt(ui);
+		model.removeNodeFromParent(un);
+		users.remove(ui);
+		
+		users.add(newnick);
+		Collections.sort(users, String.CASE_INSENSITIVE_ORDER);
+		un = new DefaultMutableTreeNode(u);
+		model.insertNodeInto(un, cn, users.indexOf(newnick));
 	}
 	
 	@Override
@@ -122,6 +148,18 @@ public class ViewerListener extends ListenerAdapter<PircBotX> {
 			public void run() {
 				for(Channel c : channels) {
 					parted(event.getBot().getUserBot(), c, event.getUser());
+				}
+			}
+		});
+	}
+
+	@Override
+	public void onNickChange(final NickChangeEvent<PircBotX> event) throws Exception {
+		EventQueue.invokeAndWait(new Runnable() {
+			@Override
+			public void run() {
+				for(Channel c : channels) {
+					nickchanged(event.getBot().getUserBot(), c, event.getUser(), event.getOldNick(), event.getNewNick());
 				}
 			}
 		});
