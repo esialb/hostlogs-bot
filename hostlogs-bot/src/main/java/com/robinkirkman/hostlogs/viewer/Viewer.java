@@ -331,8 +331,8 @@ public class Viewer {
 		
 		new Thread(irc).start();
 		
-//		refresh.start();
-		refresh.stop();
+		refresh.start();
+//		refresh.stop();
 		
 	}
 	
