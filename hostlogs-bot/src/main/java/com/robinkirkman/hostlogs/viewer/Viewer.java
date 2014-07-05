@@ -248,7 +248,7 @@ public class Viewer {
 			}
 		});
 		
-		Timer refresh = new Timer(1000, new ActionListener() {
+		Timer refresh = new Timer(10000, new ActionListener() {
 			
 			@Override
 			public void actionPerformed(ActionEvent e) {
@@ -331,7 +331,8 @@ public class Viewer {
 		
 		new Thread(irc).start();
 		
-		refresh.start();
+//		refresh.start();
+		refresh.stop();
 		
 	}
 	
