@@ -1,5 +1,6 @@
 package com.robinkirkman.hostlogs;
 
+import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileOutputStream;
 import java.util.Arrays;
@@ -25,7 +26,7 @@ public class Bot {
 		OPT.addOption("s", "server", true, "bot bouncer server (req)");
 		OPT.addOption("p", "port", true, "bot bouncer server port");
 		OPT.addOption(null, "pass", true, "bot bouncer server password");
-		OPT.addOption("c", "config", true, "use config properties file <arg>");
+		OPT.addOption("c", "config", true, "use config properties file <arg> (default hostlogs-bot.config )");
 		OPT.addOption("w", "writeconfig", true, "write config propreties to <arg>, then quit");
 		OPT.addOption(null, "dbname", true, "database name (default: irc )");
 		OPT.addOption(null, "dbuser", true, "database username (default: irc )");
@@ -35,11 +36,13 @@ public class Bot {
 	}
 	
 	public static void main(String[] args) throws Exception {
-		PosixParser p = new PosixParser();
+		PosixParser pp = new PosixParser();
 		CommandLine cli;
 		try {
-			cli = p.parse(OPT, args);
-			if(cli.hasOption("config")) {
+			Properties p = new Properties();
+			p.setProperty("config", "hostlogs-bot.config");
+			cli = pp.parse(OPT, args, p);
+			if(new File(cli.getOptionValue("config")).exists()) {
 				Properties config = new Properties();
 				FileInputStream in = new FileInputStream(cli.getOptionValue("config"));
 				try {
@@ -47,7 +50,7 @@ public class Bot {
 				} finally {
 					in.close();
 				}
-				cli = p.parse(OPT, args, config);
+				cli = pp.parse(OPT, args, config);
 			}
 			if(!cli.hasOption("nick") || !cli.hasOption("user") || !cli.hasOption("server"))
 				throw new RuntimeException();
