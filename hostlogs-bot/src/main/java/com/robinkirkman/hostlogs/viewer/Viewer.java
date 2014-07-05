@@ -3,6 +3,8 @@ package com.robinkirkman.hostlogs.viewer;
 import java.awt.BorderLayout;
 import java.awt.Dimension;
 import java.awt.EventQueue;
+import java.awt.SecondaryLoop;
+import java.awt.Toolkit;
 import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
 import java.io.File;
@@ -195,32 +197,54 @@ public class Viewer {
 					frame.setTitle("IRC");
 					return;
 				}
-				User u = (User) o;
-				String host = u.getHostmask();
-				Object[] p = e.getPath().getPath();
-				String channel = ((Channel) ((DefaultMutableTreeNode) p[p.length-2]).getUserObject()).getName();
 				
-				SqlSession sq = Sql.get().openSession();
-				try {
-					SimpleDateFormat df = new SimpleDateFormat("yyyy.MM.dd HH:mm");
-					
-					FromHost from = new FromHost();
-					from.setHost(host.toLowerCase());
-					from.setTo(channel.toLowerCase());
-					List<Line> lines = sq.getMapper(LineMapper.class).last100(from);
-					Collections.reverse(lines);
-					String text = "<html>";
-					Line prev = null;
-					for(Line l : lines) {
-						text += lineHeader(prev, l) + l.getLine() + "<br>\n";
-						prev = l;
+				logs.setText("");
+				
+				User u = (User) o;
+				final String host = u.getHostmask();
+				Object[] p = e.getPath().getPath();
+				final String channel = ((Channel) ((DefaultMutableTreeNode) p[p.length-2]).getUserObject()).getName();
+				
+				final SecondaryLoop loop = Toolkit.getDefaultToolkit().getSystemEventQueue().createSecondaryLoop();
+				
+				Runnable task = new Runnable() {
+					@Override
+					public void run() {
+						SqlSession sq = Sql.get().openSession();
+						try {
+							SimpleDateFormat df = new SimpleDateFormat("yyyy.MM.dd HH:mm");
+							
+							FromHost from = new FromHost();
+							from.setHost(host.toLowerCase());
+							from.setTo(channel.toLowerCase());
+							List<Line> lines = sq.getMapper(LineMapper.class).last100(from);
+							Collections.reverse(lines);
+							String text = "<html>";
+							Line prev = null;
+							for(Line l : lines) {
+								text += lineHeader(prev, l) + l.getLine() + "<br>\n";
+								prev = l;
+							}
+							text += "</html>";
+							final String t = text;
+							EventQueue.invokeLater(new Runnable() {
+								@Override
+								public void run() {
+									logs.setText(logsHtml = t);
+									frame.setTitle(host + " / " + channel);
+								}
+							});
+							
+						} finally {
+							loop.exit();
+							sq.close();
+						}
 					}
-					text += "</html>";
-					logs.setText(logsHtml = text);
-					frame.setTitle(host + " / " + channel);
-				} finally {
-					sq.close();
-				}
+				};
+				
+				new Thread(task).start();
+				
+				loop.enter();
 			}
 		});
 		
@@ -242,32 +266,51 @@ public class Viewer {
 					return;
 				}
 				User u = (User) o;
-				String host = u.getHostmask();
+				final String host = u.getHostmask();
 				Object[] p = path.getPath();
-				String channel = ((Channel) ((DefaultMutableTreeNode) p[p.length-2]).getUserObject()).getName();
+				final String channel = ((Channel) ((DefaultMutableTreeNode) p[p.length-2]).getUserObject()).getName();
+
+				final SecondaryLoop loop = Toolkit.getDefaultToolkit().getSystemEventQueue().createSecondaryLoop();
 				
-				SqlSession sq = Sql.get().openSession();
-				try {
-					
-					FromHost from = new FromHost();
-					from.setHost(host.toLowerCase());
-					from.setTo(channel.toLowerCase());
-					List<Line> lines = sq.getMapper(LineMapper.class).last100(from);
-					Collections.reverse(lines);
-					String text = "<html>";
-					Line prev = null;
-					for(Line l : lines) {
-						text += lineHeader(prev, l) + l.getLine() + "<br>\n";
-						prev = l;
+				Runnable task = new Runnable() {
+					@Override
+					public void run() {
+						SqlSession sq = Sql.get().openSession();
+						try {
+							
+							FromHost from = new FromHost();
+							from.setHost(host.toLowerCase());
+							from.setTo(channel.toLowerCase());
+							List<Line> lines = sq.getMapper(LineMapper.class).last100(from);
+							Collections.reverse(lines);
+							String text = "<html>";
+							Line prev = null;
+							for(Line l : lines) {
+								text += lineHeader(prev, l) + l.getLine() + "<br>\n";
+								prev = l;
+							}
+							text += "</html>";
+							if(text.equals(logsHtml))
+								return;
+							final String t = text;
+							EventQueue.invokeLater(new Runnable() {
+								@Override
+								public void run() {
+									logs.setText(logsHtml = t);
+									frame.setTitle(host + " / " + channel);
+								}
+							});
+							
+						} finally {
+							loop.exit();
+							sq.close();
+						}
 					}
-					text += "</html>";
-					if(text.equals(logsHtml))
-						return;
-					logs.setText(logsHtml = text);
-					frame.setTitle(host + " / " + channel);
-				} finally {
-					sq.close();
-				}
+				};
+				
+				new Thread(task).start();
+				loop.enter();
+				
 			}
 		});
 		
