@@ -10,7 +10,7 @@ VALUES
 	(#{to}, #{nick}, #{user}, #{host}, #{line}, #{ts})
 ;
 	</insert>
-	<select id="last100" parameterType="FromHost" resultType="Line">
+	<select id="last" parameterType="FromHost" resultType="Line">
 SELECT
 	`to` as `to`, `nick` as `nick`, `user` as `user`, `host` as `host`, `line` as `line`, `ts` as `ts`
 FROM
@@ -20,7 +20,7 @@ WHERE
 	AND `to` = #{to}
 ORDER BY
 	`ts` DESC
-LIMIT 100
+LIMIT #{lines}
 ;
 	</select>
 	

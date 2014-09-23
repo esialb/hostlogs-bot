@@ -3,6 +3,7 @@ package com.robinkirkman.hostlogs;
 public class FromHost {
 	private String to;
 	private String host;
+	private Integer lines = 100;
 	
 	public String getTo() {
 		return to;
@@ -15,6 +16,12 @@ public class FromHost {
 	}
 	public void setHost(String host) {
 		this.host = host;
+	}
+	public Integer getLines() {
+		return lines;
+	}
+	public void setLines(Integer lines) {
+		this.lines = lines;
 	}
 	
 }

@@ -66,6 +66,7 @@ public class Viewer {
 		OPT.addOption(null, "dbpass", true, "database password (default: irc )");
 		OPT.addOption(null, "dburl", true, "database url (default: jdbc:mysql://localhost/ )");
 		OPT.addOption(null, "dbcreate", false, "create the table 'lines' for logging, then quit");
+		OPT.addOption("l", "lines", true, "number of history lines to view");
 	}
 	
 	private static String logsHtml = null;
@@ -141,6 +142,8 @@ public class Viewer {
 		if(cli.hasOption("port"))
 			port = Integer.parseInt(cli.getOptionValue("port"));
 	
+		final int lines = Integer.parseInt(cli.getOptionValue("lines", "100"));
+		
 		final ViewerListener vl = new ViewerListener();
 
 		final Configuration<PircBotX> c = 
@@ -217,7 +220,8 @@ public class Viewer {
 							FromHost from = new FromHost();
 							from.setHost(host.toLowerCase());
 							from.setTo(channel.toLowerCase());
-							List<Line> lines = sq.getMapper(LineMapper.class).last100(from);
+							from.setLines(lines);
+							List<Line> lines = sq.getMapper(LineMapper.class).last(from);
 							Collections.reverse(lines);
 							String text = "<html>";
 							Line prev = null;
@@ -281,7 +285,8 @@ public class Viewer {
 							FromHost from = new FromHost();
 							from.setHost(host.toLowerCase());
 							from.setTo(channel.toLowerCase());
-							List<Line> lines = sq.getMapper(LineMapper.class).last100(from);
+							from.setLines(lines);
+							List<Line> lines = sq.getMapper(LineMapper.class).last(from);
 							Collections.reverse(lines);
 							String text = "<html>";
 							Line prev = null;
