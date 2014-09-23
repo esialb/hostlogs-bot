@@ -16,13 +16,22 @@ public class ViewerTreeCellRenderer extends DefaultTreeCellRenderer {
 			boolean sel, boolean expanded, boolean leaf, int row,
 			boolean hasFocus) {
 		
-		if(value instanceof DefaultMutableTreeNode)
-			value = ((DefaultMutableTreeNode) value).getUserObject();
+		Integer qty = null;
 		
-		if(value instanceof Channel)
+		if(value instanceof DefaultMutableTreeNode) {
+			qty = ((DefaultMutableTreeNode) value).getChildCount();
+			value = ((DefaultMutableTreeNode) value).getUserObject();
+		}
+		
+		if(value instanceof Channel) {
 			value = ((Channel) value).getName();
+			qty = null;
+		}
 		if(value instanceof User)
 			value = ((User) value).getNick();
+		
+		if(qty != null && qty > 1)
+			value = "(" + qty + ") " + value; 
 		
 		return super.getTreeCellRendererComponent(tree, value, sel, expanded, leaf, row, hasFocus);
 	}

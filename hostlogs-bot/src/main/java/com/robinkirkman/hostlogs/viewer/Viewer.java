@@ -209,7 +209,13 @@ public class Viewer {
 					host = ((FromHost) o).getHost();
 				}
 				Object[] p = e.getPath().getPath();
-				final String channel = ((Channel) ((DefaultMutableTreeNode) p[p.length-3]).getUserObject()).getName();
+				String ch = null;
+				for(Object n : p) {
+					Object userObject = ((DefaultMutableTreeNode) n).getUserObject();
+					if(userObject instanceof Channel)
+						ch = ((Channel) userObject).getName();
+				}
+				final String channel = ch;
 				
 				final SecondaryLoop loop = Toolkit.getDefaultToolkit().getSystemEventQueue().createSecondaryLoop();
 				
@@ -279,7 +285,13 @@ public class Viewer {
 					host = ((FromHost) o).getHost();
 				}
 				Object[] p = path.getPath();
-				final String channel = ((Channel) ((DefaultMutableTreeNode) p[p.length-3]).getUserObject()).getName();
+				String ch = null;
+				for(Object n : p) {
+					Object userObject = ((DefaultMutableTreeNode) n).getUserObject();
+					if(userObject instanceof Channel)
+						ch = ((Channel) userObject).getName();
+				}
+				final String channel = ch;
 
 				final SecondaryLoop loop = Toolkit.getDefaultToolkit().getSystemEventQueue().createSecondaryLoop();
 				
@@ -329,7 +341,7 @@ public class Viewer {
 		refresh.setCoalesce(true);
 		refresh.setRepeats(true);
 		
-		JScrollPane treescroll = new JScrollPane(tree, JScrollPane.VERTICAL_SCROLLBAR_AS_NEEDED, JScrollPane.HORIZONTAL_SCROLLBAR_NEVER);
+		JScrollPane treescroll = new JScrollPane(tree, JScrollPane.VERTICAL_SCROLLBAR_AS_NEEDED, JScrollPane.HORIZONTAL_SCROLLBAR_AS_NEEDED);
 		treescroll.setPreferredSize(new Dimension(200, 300));
 		
 		frame.setLayout(new BorderLayout());

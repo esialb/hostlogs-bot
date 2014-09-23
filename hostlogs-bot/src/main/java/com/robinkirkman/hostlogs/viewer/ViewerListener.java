@@ -3,6 +3,7 @@ package com.robinkirkman.hostlogs.viewer;
 import java.awt.EventQueue;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 import java.util.TreeMap;
@@ -23,15 +24,42 @@ import org.pircbotx.hooks.events.UserListEvent;
 
 import com.robinkirkman.hostlogs.FromHost;
 
+import static com.robinkirkman.hostlogs.viewer.SortingTreeModel.*;
+
 public class ViewerListener extends ListenerAdapter<PircBotX> {
+	private static final Comparator<Channel> CHANNEL_ORDER = new Comparator<Channel>() {
+		@Override
+		public int compare(Channel o1, Channel o2) {
+			return String.CASE_INSENSITIVE_ORDER.compare(o1.getName(), o2.getName());
+		}
+	};
 	
-	private List<Channel> channels = new ArrayList<>();
-	private Map<Channel, List<String>> members = new TreeMap<>();
-	private Map<Channel, TreeMap<String, AtomicInteger>> hosts = new TreeMap<>();
+	private static final Comparator<User> USER_ORDER = new Comparator<User>() {
+		@Override
+		public int compare(User o1, User o2) {
+			return String.CASE_INSENSITIVE_ORDER.compare(o1.getNick(), o2.getNick());
+		}
+	};
+	
+	private static final Comparator<Object> USER_NICK_ORDER = new Comparator<Object>() {
+		@Override
+		public int compare(Object o1, Object o2) {
+			String s1 = (o1 instanceof User) ? ((User) o1).getNick() : String.valueOf(o1);
+			String s2 = (o2 instanceof User) ? ((User) o2).getNick() : String.valueOf(o2);
+			return String.CASE_INSENSITIVE_ORDER.compare(s1, s2);
+		}
+	};
+	
+	private static final Comparator<FromHost> HOST_ORDER = new Comparator<FromHost>() {
+		@Override
+		public int compare(FromHost o1, FromHost o2) {
+			return String.CASE_INSENSITIVE_ORDER.compare(o1.getHost(), o2.getHost());
+		}
+	};
 	
 	private DefaultMutableTreeNode root = new DefaultMutableTreeNode("Channels");
 	
-	private DefaultTreeModel model = new DefaultTreeModel(root);
+	private SortingTreeModel model = new SortingTreeModel(root);
 	
 	public DefaultTreeModel getModel() {
 		return model;
@@ -42,92 +70,95 @@ public class ViewerListener extends ListenerAdapter<PircBotX> {
 			model.removeNodeFromParent((DefaultMutableTreeNode) root.getChildAt(0));
 	}
 	
+	private DefaultMutableTreeNode channelNode(Channel c) {
+		return model.childWithObject(root, c, EQUALS);
+	}
+	
+	private DefaultMutableTreeNode ensureChannelNode(Channel c) {
+		DefaultMutableTreeNode node = model.childWithObject(root, c, EQUALS);
+		if(node != null)
+			return node;
+		node = new DefaultMutableTreeNode(c);
+		model.sortNodeInto(node, root, CHANNEL_ORDER);
+		model.insertNodeInto(new DefaultMutableTreeNode("Users"), node, 0);
+		model.insertNodeInto(new DefaultMutableTreeNode("Hosts"), node, 1);
+		return node;
+	}
+	
+	private DefaultMutableTreeNode usersNode(Channel c) {
+		DefaultMutableTreeNode channelNode = model.childWithObject(root, c, EQUALS);
+		if(channelNode == null)
+			return null;
+		return (DefaultMutableTreeNode) channelNode.getChildAt(0);
+	}
+	
+	private DefaultMutableTreeNode hostsNode(Channel c) {
+		DefaultMutableTreeNode channelNode = model.childWithObject(root, c, EQUALS);
+		if(channelNode == null)
+			return null;
+		return (DefaultMutableTreeNode) channelNode.getChildAt(1);
+	}
+	
+	private DefaultMutableTreeNode hostNode(Channel c, FromHost host) {
+		DefaultMutableTreeNode hostsNode = hostsNode(c);
+		return model.childWithObject(hostsNode, host, HOST_ORDER);
+	}
+	
+	private DefaultMutableTreeNode ensureHostNode(Channel c, FromHost host) {
+		DefaultMutableTreeNode hostsNode = hostsNode(c);
+		DefaultMutableTreeNode hostNode = model.childWithObject(hostsNode, host, HOST_ORDER);
+		if(hostNode != null)
+			return hostNode;
+		hostNode = new DefaultMutableTreeNode(host);
+		model.sortNodeInto(hostNode, hostsNode, HOST_ORDER);
+		return hostNode;
+	}
+	
 	private void joined(User botuser, Channel c, User u) {
-		if(!members.containsKey(c)) {
-			members.put(c, new ArrayList<String>());
-			hosts.put(c, new TreeMap<String, AtomicInteger>(String.CASE_INSENSITIVE_ORDER));
-			DefaultMutableTreeNode cn = new DefaultMutableTreeNode(c);
-			channels.add(c);
-			Collections.sort(channels);
-			model.insertNodeInto(cn, root, channels.indexOf(c));
-			DefaultMutableTreeNode nn = new DefaultMutableTreeNode("Nicknames");
-			DefaultMutableTreeNode hn = new DefaultMutableTreeNode("Hostnames");
-			model.insertNodeInto(nn, cn, 0);
-			model.insertNodeInto(hn, cn, 1);
-		}
-		List<String> users = members.get(c);
-		if(users.contains(u.getNick()))
+		ensureChannelNode(c);
+		
+		DefaultMutableTreeNode usersNode = usersNode(c);
+		
+		if(model.childWithObject(usersNode, u, EQUALS) != null)
 			return;
-		users.add(u.getNick());
-		Collections.sort(users, String.CASE_INSENSITIVE_ORDER);
-		DefaultMutableTreeNode cn = (DefaultMutableTreeNode) root.getChildAt(channels.indexOf(c));
-		DefaultMutableTreeNode un = new DefaultMutableTreeNode(u);
-		DefaultMutableTreeNode mn = (DefaultMutableTreeNode) cn.getChildAt(0);
-		model.insertNodeInto(un, mn, users.indexOf(u.getNick()));
-		TreeMap<String, AtomicInteger> hostnames = hosts.get(c);
-		if(!hostnames.containsKey(u.getHostmask()))
-			hostnames.put(u.getHostmask(), new AtomicInteger(0));
-		if(hostnames.get(u.getHostmask()).incrementAndGet() == 1) {
-			DefaultMutableTreeNode hn = (DefaultMutableTreeNode) cn.getChildAt(1);
-			FromHost from = new FromHost();
-			from.setHost(u.getHostmask());
-			DefaultMutableTreeNode fn = new DefaultMutableTreeNode(from);
-			int index = hostnames.headMap(u.getHostmask()).size();
-			model.insertNodeInto(fn, hn, index);
-		}
+		
+		model.sortValueInto(u, usersNode, USER_ORDER);
+		
+		FromHost host = new FromHost(u.getHostmask());
+		DefaultMutableTreeNode hostNode = ensureHostNode(c, host);
+		model.sortValueInto(u, hostNode, USER_ORDER);
 	}
 	
 	private void parted(User botuser, Channel c, User u) {
-		int ci = channels.indexOf(c);
-		DefaultMutableTreeNode cn = (DefaultMutableTreeNode) root.getChildAt(ci);
-
-		if(botuser.equals(u)) { // remove the entire channel, we parted
-			model.removeNodeFromParent(cn);
-			channels.remove(c);
-			members.remove(c);
+		if(botuser.equals(u)) {
+			model.removeNodeFromParent(channelNode(c));
 			return;
 		}
+
+		DefaultMutableTreeNode usersNode = usersNode(c);
 		
-		List<String> users = members.get(c);
-		int ui = users.indexOf(u.getNick());
-		if(ui == -1)
-			return;
-		DefaultMutableTreeNode un = (DefaultMutableTreeNode) cn.getChildAt(0).getChildAt(ui);
-		model.removeNodeFromParent(un);
-		users.remove(ui);
-
-		TreeMap<String, AtomicInteger> hostnames = hosts.get(c);
-		if(hostnames.get(u.getHostmask()).decrementAndGet() == 0) {
-			DefaultMutableTreeNode hn = (DefaultMutableTreeNode) cn.getChildAt(1);
-			int index = hostnames.headMap(u.getHostmask()).size();
-			model.removeNodeFromParent((DefaultMutableTreeNode) hn.getChildAt(index));
-			hostnames.remove(u.getHostmask());
-		}
+		model.removeNodeFromParent(model.childWithObject(usersNode, u, USER_ORDER));
+		
+		FromHost host = new FromHost(u.getHostmask());
+		DefaultMutableTreeNode hostNode = hostNode(c, host);
+		
+		model.removeNodeFromParent(model.childWithObject(hostNode, u, USER_ORDER));
+		
+		if(hostNode.getChildCount() == 0)
+			model.removeNodeFromParent(hostNode);
 	}
 	
 	private void nickchanged(User botuser, Channel c, User u, String oldnick, String newnick) {
-		int ci = channels.indexOf(c);
-		DefaultMutableTreeNode cn = (DefaultMutableTreeNode) root.getChildAt(ci);
-
-		if(botuser.equals(u)) { // remove the entire channel, we parted
-			model.removeNodeFromParent(cn);
-			channels.remove(c);
-			members.remove(c);
-			return;
-		}
+		DefaultMutableTreeNode usersNode = usersNode(c);
 		
-		List<String> users = members.get(c);
-		int ui = users.indexOf(oldnick);
-		if(ui == -1)
-			return;
-		DefaultMutableTreeNode un = (DefaultMutableTreeNode) cn.getChildAt(0).getChildAt(ui);
-		model.removeNodeFromParent(un);
-		users.remove(ui);
+		model.removeNodeFromParent(model.childWithObject(usersNode, oldnick, USER_NICK_ORDER));
+		model.sortValueInto(u, usersNode, USER_ORDER);
 		
-		users.add(newnick);
-		Collections.sort(users, String.CASE_INSENSITIVE_ORDER);
-		un = new DefaultMutableTreeNode(u);
-		model.insertNodeInto(un, (DefaultMutableTreeNode) cn.getChildAt(0), users.indexOf(newnick));
+		FromHost host = new FromHost(u.getHostmask());
+		DefaultMutableTreeNode hostNode = hostNode(c, host);
+		
+		model.removeNodeFromParent(model.childWithObject(hostNode, oldnick, USER_NICK_ORDER));
+		model.sortValueInto(u, hostNode, USER_ORDER);
 	}
 	
 	@Override
@@ -174,7 +205,8 @@ public class ViewerListener extends ListenerAdapter<PircBotX> {
 		EventQueue.invokeAndWait(new Runnable() {
 			@Override
 			public void run() {
-				for(Channel c : channels) {
+				for(Object channelNode : Collections.list(root.children())) {
+					Channel c = (Channel) ((DefaultMutableTreeNode) channelNode).getUserObject();
 					parted(event.getBot().getUserBot(), c, event.getUser());
 				}
 			}
@@ -186,7 +218,8 @@ public class ViewerListener extends ListenerAdapter<PircBotX> {
 		EventQueue.invokeAndWait(new Runnable() {
 			@Override
 			public void run() {
-				for(Channel c : channels) {
+				for(Object channelNode : Collections.list(root.children())) {
+					Channel c = (Channel) ((DefaultMutableTreeNode) channelNode).getUserObject();
 					nickchanged(event.getBot().getUserBot(), c, event.getUser(), event.getOldNick(), event.getNewNick());
 				}
 			}
