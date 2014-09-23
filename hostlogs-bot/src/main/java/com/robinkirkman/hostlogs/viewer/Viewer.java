@@ -195,18 +195,21 @@ public class Viewer {
 				Object o = e.getPath().getLastPathComponent();
 				if(o instanceof DefaultMutableTreeNode)
 					o = ((DefaultMutableTreeNode) o).getUserObject();
-				if(!(o instanceof User)) {
+				if(!(o instanceof User) && !(o instanceof FromHost)) {
 					logs.setText("");
 					frame.setTitle("IRC");
 					return;
 				}
 				
 				logs.setText("");
-				
-				User u = (User) o;
-				final String host = u.getHostmask();
+				final String host;
+				if(o instanceof User) {
+					host = ((User) o).getHostmask();
+				} else {
+					host = ((FromHost) o).getHost();
+				}
 				Object[] p = e.getPath().getPath();
-				final String channel = ((Channel) ((DefaultMutableTreeNode) p[p.length-2]).getUserObject()).getName();
+				final String channel = ((Channel) ((DefaultMutableTreeNode) p[p.length-3]).getUserObject()).getName();
 				
 				final SecondaryLoop loop = Toolkit.getDefaultToolkit().getSystemEventQueue().createSecondaryLoop();
 				
@@ -264,15 +267,19 @@ public class Viewer {
 				Object o = path.getLastPathComponent();
 				if(o instanceof DefaultMutableTreeNode)
 					o = ((DefaultMutableTreeNode) o).getUserObject();
-				if(!(o instanceof User)) {
+				if(!(o instanceof User) && !(o instanceof FromHost)) {
 					logs.setText("");
 					frame.setTitle("IRC");
 					return;
 				}
-				User u = (User) o;
-				final String host = u.getHostmask();
+				final String host;
+				if(o instanceof User) {
+					host = ((User) o).getHostmask();
+				} else {
+					host = ((FromHost) o).getHost();
+				}
 				Object[] p = path.getPath();
-				final String channel = ((Channel) ((DefaultMutableTreeNode) p[p.length-2]).getUserObject()).getName();
+				final String channel = ((Channel) ((DefaultMutableTreeNode) p[p.length-3]).getUserObject()).getName();
 
 				final SecondaryLoop loop = Toolkit.getDefaultToolkit().getSystemEventQueue().createSecondaryLoop();
 				

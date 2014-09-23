@@ -6,6 +6,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.TreeMap;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import javax.swing.tree.DefaultMutableTreeNode;
 import javax.swing.tree.DefaultTreeModel;
@@ -20,10 +21,13 @@ import org.pircbotx.hooks.events.PartEvent;
 import org.pircbotx.hooks.events.QuitEvent;
 import org.pircbotx.hooks.events.UserListEvent;
 
+import com.robinkirkman.hostlogs.FromHost;
+
 public class ViewerListener extends ListenerAdapter<PircBotX> {
 	
 	private List<Channel> channels = new ArrayList<>();
 	private Map<Channel, List<String>> members = new TreeMap<>();
+	private Map<Channel, TreeMap<String, AtomicInteger>> hosts = new TreeMap<>();
 	
 	private DefaultMutableTreeNode root = new DefaultMutableTreeNode("Channels");
 	
@@ -41,10 +45,15 @@ public class ViewerListener extends ListenerAdapter<PircBotX> {
 	private void joined(User botuser, Channel c, User u) {
 		if(!members.containsKey(c)) {
 			members.put(c, new ArrayList<String>());
+			hosts.put(c, new TreeMap<String, AtomicInteger>(String.CASE_INSENSITIVE_ORDER));
 			DefaultMutableTreeNode cn = new DefaultMutableTreeNode(c);
 			channels.add(c);
 			Collections.sort(channels);
 			model.insertNodeInto(cn, root, channels.indexOf(c));
+			DefaultMutableTreeNode nn = new DefaultMutableTreeNode("Nicknames");
+			DefaultMutableTreeNode hn = new DefaultMutableTreeNode("Hostnames");
+			model.insertNodeInto(nn, cn, 0);
+			model.insertNodeInto(hn, cn, 1);
 		}
 		List<String> users = members.get(c);
 		if(users.contains(u.getNick()))
@@ -53,7 +62,19 @@ public class ViewerListener extends ListenerAdapter<PircBotX> {
 		Collections.sort(users, String.CASE_INSENSITIVE_ORDER);
 		DefaultMutableTreeNode cn = (DefaultMutableTreeNode) root.getChildAt(channels.indexOf(c));
 		DefaultMutableTreeNode un = new DefaultMutableTreeNode(u);
-		model.insertNodeInto(un, cn, users.indexOf(u.getNick()));
+		DefaultMutableTreeNode mn = (DefaultMutableTreeNode) cn.getChildAt(0);
+		model.insertNodeInto(un, mn, users.indexOf(u.getNick()));
+		TreeMap<String, AtomicInteger> hostnames = hosts.get(c);
+		if(!hostnames.containsKey(u.getHostmask()))
+			hostnames.put(u.getHostmask(), new AtomicInteger(0));
+		if(hostnames.get(u.getHostmask()).incrementAndGet() == 1) {
+			DefaultMutableTreeNode hn = (DefaultMutableTreeNode) cn.getChildAt(1);
+			FromHost from = new FromHost();
+			from.setHost(u.getHostmask());
+			DefaultMutableTreeNode fn = new DefaultMutableTreeNode(from);
+			int index = hostnames.headMap(u.getHostmask()).size();
+			model.insertNodeInto(fn, hn, index);
+		}
 	}
 	
 	private void parted(User botuser, Channel c, User u) {
@@ -71,10 +92,17 @@ public class ViewerListener extends ListenerAdapter<PircBotX> {
 		int ui = users.indexOf(u.getNick());
 		if(ui == -1)
 			return;
-		DefaultMutableTreeNode un = (DefaultMutableTreeNode) cn.getChildAt(ui);
+		DefaultMutableTreeNode un = (DefaultMutableTreeNode) cn.getChildAt(0).getChildAt(ui);
 		model.removeNodeFromParent(un);
 		users.remove(ui);
 
+		TreeMap<String, AtomicInteger> hostnames = hosts.get(c);
+		if(hostnames.get(u.getHostmask()).decrementAndGet() == 0) {
+			DefaultMutableTreeNode hn = (DefaultMutableTreeNode) cn.getChildAt(1);
+			int index = hostnames.headMap(u.getHostmask()).size();
+			model.removeNodeFromParent((DefaultMutableTreeNode) hn.getChildAt(index));
+			hostnames.remove(u.getHostmask());
+		}
 	}
 	
 	private void nickchanged(User botuser, Channel c, User u, String oldnick, String newnick) {
@@ -92,14 +120,14 @@ public class ViewerListener extends ListenerAdapter<PircBotX> {
 		int ui = users.indexOf(oldnick);
 		if(ui == -1)
 			return;
-		DefaultMutableTreeNode un = (DefaultMutableTreeNode) cn.getChildAt(ui);
+		DefaultMutableTreeNode un = (DefaultMutableTreeNode) cn.getChildAt(0).getChildAt(ui);
 		model.removeNodeFromParent(un);
 		users.remove(ui);
 		
 		users.add(newnick);
 		Collections.sort(users, String.CASE_INSENSITIVE_ORDER);
 		un = new DefaultMutableTreeNode(u);
-		model.insertNodeInto(un, cn, users.indexOf(newnick));
+		model.insertNodeInto(un, (DefaultMutableTreeNode) cn.getChildAt(0), users.indexOf(newnick));
 	}
 	
 	@Override

@@ -24,4 +24,8 @@ public class FromHost {
 		this.lines = lines;
 	}
 	
+	@Override
+	public String toString() {
+		return String.valueOf(host);
+	}
 }
