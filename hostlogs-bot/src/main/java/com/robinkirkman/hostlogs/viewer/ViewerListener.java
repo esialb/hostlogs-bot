@@ -136,8 +136,11 @@ public class ViewerListener extends ListenerAdapter<PircBotX> {
 		}
 
 		DefaultMutableTreeNode usersNode = usersNode(c);
+		DefaultMutableTreeNode userNode = model.childWithObject(usersNode, u, USER_ORDER);
+		if(userNode == null)
+			return;
 		
-		model.removeNodeFromParent(model.childWithObject(usersNode, u, USER_ORDER));
+		model.removeNodeFromParent(userNode);
 		
 		FromHost host = new FromHost(u.getHostmask());
 		DefaultMutableTreeNode hostNode = hostNode(c, host);
