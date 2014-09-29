@@ -50,8 +50,6 @@ import com.robinkirkman.hostlogs.LogsListener;
 import com.robinkirkman.hostlogs.Sql;
 
 public class Viewer {
-	private static SimpleDateFormat df = new SimpleDateFormat("yyyy.MM.dd HH:mm");
-
 	private static final Options OPT = new Options();
 	static {
 		OPT.addOption("n", "nick", true, "bot bouncer nickname (req)");
@@ -68,8 +66,6 @@ public class Viewer {
 		OPT.addOption(null, "dbcreate", false, "create the table 'lines' for logging, then quit");
 		OPT.addOption("l", "lines", true, "number of history lines to view");
 	}
-	
-	private static String logsHtml = null;
 	
 	public static void main(String[] args) throws Exception {
 		System.setProperty(SimpleLogger.DEFAULT_LOG_LEVEL_KEY, "error");
@@ -179,200 +175,10 @@ public class Viewer {
 			}
 		};
 		
-		final JFrame frame = new JFrame("IRC");
-
-		final JTree tree = new JTree(vl.getModel());
-		tree.getSelectionModel().setSelectionMode(TreeSelectionModel.SINGLE_TREE_SELECTION);
-		tree.setCellRenderer(new ViewerTreeCellRenderer());
-		tree.setShowsRootHandles(true);
-		
-		final JEditorPane logs = new JEditorPane("text/html", "");
-		logs.setEditable(false);
-		
-		tree.addTreeSelectionListener(new TreeSelectionListener() {
-			@Override
-			public void valueChanged(TreeSelectionEvent e) {
-				Object o = e.getPath().getLastPathComponent();
-				if(o instanceof DefaultMutableTreeNode)
-					o = ((DefaultMutableTreeNode) o).getUserObject();
-				if(!(o instanceof User) && !(o instanceof FromHost)) {
-					logs.setText("");
-					frame.setTitle("IRC");
-					return;
-				}
+		JFrame frame = new ViewerFrame(vl, lines);
 				
-				logs.setText("");
-				final String host;
-				if(o instanceof User) {
-					host = ((User) o).getHostmask();
-				} else {
-					host = ((FromHost) o).getHost();
-				}
-				Object[] p = e.getPath().getPath();
-				String ch = null;
-				for(Object n : p) {
-					Object userObject = ((DefaultMutableTreeNode) n).getUserObject();
-					if(userObject instanceof Channel)
-						ch = ((Channel) userObject).getName();
-				}
-				final String channel = ch;
-				
-				final SecondaryLoop loop = Toolkit.getDefaultToolkit().getSystemEventQueue().createSecondaryLoop();
-				
-				Runnable task = new Runnable() {
-					@Override
-					public void run() {
-						SqlSession sq = Sql.get().openSession();
-						try {
-							SimpleDateFormat df = new SimpleDateFormat("yyyy.MM.dd HH:mm");
-							
-							FromHost from = new FromHost();
-							from.setHost(host.toLowerCase());
-							from.setTo(channel.toLowerCase());
-							from.setLines(lines);
-							List<Line> lines = sq.getMapper(LineMapper.class).last(from);
-							Collections.reverse(lines);
-							String text = "<html>";
-							Line prev = null;
-							for(Line l : lines) {
-								text += lineHeader(prev, l) + l.getLine() + "<br>\n";
-								prev = l;
-							}
-							text += "</html>";
-							final String t = text;
-							EventQueue.invokeLater(new Runnable() {
-								@Override
-								public void run() {
-									logs.setText(logsHtml = t);
-									frame.setTitle(host + " / " + channel);
-								}
-							});
-							
-						} finally {
-							loop.exit();
-							sq.close();
-						}
-					}
-				};
-				
-				new Thread(task).start();
-				
-				loop.enter();
-			}
-		});
-		
-		Timer refresh = new Timer(10000, new ActionListener() {
-			
-			@Override
-			public void actionPerformed(ActionEvent e) {
-				TreePath path = tree.getSelectionPath();
-				
-				if(path == null)
-					return;
-				
-				Object o = path.getLastPathComponent();
-				if(o instanceof DefaultMutableTreeNode)
-					o = ((DefaultMutableTreeNode) o).getUserObject();
-				if(!(o instanceof User) && !(o instanceof FromHost)) {
-					logs.setText("");
-					frame.setTitle("IRC");
-					return;
-				}
-				final String host;
-				if(o instanceof User) {
-					host = ((User) o).getHostmask();
-				} else {
-					host = ((FromHost) o).getHost();
-				}
-				Object[] p = path.getPath();
-				String ch = null;
-				for(Object n : p) {
-					Object userObject = ((DefaultMutableTreeNode) n).getUserObject();
-					if(userObject instanceof Channel)
-						ch = ((Channel) userObject).getName();
-				}
-				final String channel = ch;
-
-				final SecondaryLoop loop = Toolkit.getDefaultToolkit().getSystemEventQueue().createSecondaryLoop();
-				
-				Runnable task = new Runnable() {
-					@Override
-					public void run() {
-						SqlSession sq = Sql.get().openSession();
-						try {
-							
-							FromHost from = new FromHost();
-							from.setHost(host.toLowerCase());
-							from.setTo(channel.toLowerCase());
-							from.setLines(lines);
-							List<Line> lines = sq.getMapper(LineMapper.class).last(from);
-							Collections.reverse(lines);
-							String text = "<html>";
-							Line prev = null;
-							for(Line l : lines) {
-								text += lineHeader(prev, l) + l.getLine() + "<br>\n";
-								prev = l;
-							}
-							text += "</html>";
-							if(text.equals(logsHtml))
-								return;
-							final String t = text;
-							EventQueue.invokeLater(new Runnable() {
-								@Override
-								public void run() {
-									logs.setText(logsHtml = t);
-									frame.setTitle(host + " / " + channel);
-								}
-							});
-							
-						} finally {
-							loop.exit();
-							sq.close();
-						}
-					}
-				};
-				
-				new Thread(task).start();
-				loop.enter();
-				
-			}
-		});
-		
-		refresh.setCoalesce(true);
-		refresh.setRepeats(true);
-		
-		JScrollPane treescroll = new JScrollPane(tree, JScrollPane.VERTICAL_SCROLLBAR_AS_NEEDED, JScrollPane.HORIZONTAL_SCROLLBAR_AS_NEEDED);
-		treescroll.setPreferredSize(new Dimension(200, 300));
-		
-		frame.setLayout(new BorderLayout());
-		frame.add(treescroll, BorderLayout.WEST);
-		frame.add(new JScrollPane(logs, JScrollPane.VERTICAL_SCROLLBAR_AS_NEEDED, JScrollPane.HORIZONTAL_SCROLLBAR_NEVER), BorderLayout.CENTER);
-		frame.pack();
-		frame.setSize(800, 400);
-		frame.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
-		
 		frame.setVisible(true);
 		
 		new Thread(irc).start();
-		
-		refresh.start();
-//		refresh.stop();
-		
-	}
-	
-	private static String lineHeader(Line prev, Line line) {
-		String ph = prev != null ? (df.format(prev.getTs()) + " " + prev.getNick() + ": ") : "";
-		String lh = df.format(line.getTs()) + " " + line.getNick() + ": ";
-		ph = ph.replaceAll("(\\S+)", "<b>$1</b>");
-		lh = lh.replaceAll("(\\S+)", "<b>$1</b>");
-		int i = 0;
-		int s = 0;
-		for(; i < ph.length() && i < lh.length(); i++) {
-			if(ph.charAt(i) != lh.charAt(i))
-				break;
-			if(ph.charAt(i) == ' ')
-				s = i;
-		}
-		return lh.substring(s).replaceAll("^ ?", "\u2192");
 	}
 }
